@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Watch — freenime</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <a class="logo" href="/">free<span>nime</span></a>
+  <a class="admin-link" href="/">Library</a>
+</header>
+<main class="watch-page">
+  <a href="/" class="back">← Back to library</a>
+  <video id="player" controls playsinline></video>
+  <h1 id="title">Loading...</h1>
+</main>
+<script>
+(async () => {
+  const id = new URLSearchParams(location.search).get("id");
+  const videos = await fetch("/api/videos").then(r => r.json());
+  const v = videos.find(x => String(x.id) === String(id)) || videos[0];
+  if (!v) { location.href = "/"; return; }
+  document.title = v.title + " — freenime";
+  document.getElementById("title").textContent = v.title;
+  document.getElementById("player").src = v.url;
+})();
+</script>
+</body>
+</html>
