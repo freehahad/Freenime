@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — freenime</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <a class="logo" href="/">free<span>nime</span></a>
+  <a class="admin-link" href="/">Library</a>
+</header>
+<main class="admin-page">
+  <h1>Upload a video</h1>
+  <p class="muted">Only upload videos you own or are authorized/licensed to distribute.</p>
+  <div id="storageStatus" class="status-box">Checking storage…</div>
+  <form id="form">
+    <label>Admin key<input id="key" type="password" autocomplete="off" required></label>
+    <label>Video file<input name="video" type="file" accept="video/*" required></label>
+    <label>Poster (optional)<input name="poster" type="file" accept="image/*"></label>
+    <button id="uploadBtn">Upload video</button>
+  </form>
+  <p id="status"></p>
+
+  <section class="admin-list">
+    <h2>Your uploaded videos</h2>
+    <div id="videos">Loading…</div>
+  </section>
+</main>
+<script>
+const keyInput = document.getElementById("key");
+const status = document.getElementById("status");
+const storageStatus = document.getElementById("storageStatus");
+const videosEl = document.getElementById("videos");
+
+async function loadStatus() {
+  const r = await fetch("/api/status");
+  const data = await r.json();
+  storageStatus.textContent = data.message;
+  storageStatus.className = "status-box " + (data.persistent ? "good" : "warning");
+}
+
+async function loadVideos() {
+  const r = await fetch("/api/videos");
+  const videos = await r.json();
+  videosEl.innerHTML = videos.length
+    ? videos.map(v => `<div class="admin-video"><span>${escapeHtml(v.title)}</span><button data-id="${escapeHtml(v.id)}" class="danger">Delete</button></div>`).join("")
+    : '<p class="muted">No videos uploaded yet.</p>';
+
+  videosEl.querySelectorAll("button[data-id]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!keyInput.value) return alert("Enter your admin key first.");
+      if (!confirm("Delete this video?")) return;
+      const r = await fetch(`/api/videos/${encodeURIComponent(btn.dataset.id)}`, {
+        method: "DELETE",
+        headers: { "x-admin-key": keyInput.value }
+      });
+      const data = await r.json();
+      if (!r.ok) return alert(data.error || "Delete failed.");
+      loadVideos();
+    });
+  });
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c]));
+}
+
+document.getElementById("form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const btn = document.getElementById("uploadBtn");
+  btn.disabled = true;
+  status.textContent = "Uploading… please keep this tab open.";
+  try {
+    const r = await fetch("/api/upload", {
+      method: "POST",
+      headers: { "x-admin-key": keyInput.value },
+      body: fd
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Upload failed");
+    status.textContent = data.warning || "Upload complete!";
+    e.target.reset();
+    await loadVideos();
+  } catch (err) {
+    status.textContent = "Error: " + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+loadStatus().catch(() => storageStatus.textContent = "Could not check storage.");
+loadVideos().catch(() => videosEl.textContent = "Could not load videos.");
+</script>
+</body>
+</html>
